@@ -1,0 +1,100 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <limits.h>
+#include <libgen.h>
+
+char stringToSend[128];
+char *path;
+void writePidFile();
+
+void handler(int sigNum) {
+
+	if (sigNum == 10) {
+    		// SIGUSR1
+		int child_pid = fork();
+		if (child_pid == 0) {
+			int num_pid = getpid();
+			char op = '+';
+			sprintf(stringToSend, "%c%d\n", op, num_pid);
+			writePidFile();
+		} else if (child_pid == -1){
+			perror("Fork error.\n");
+			exit(EXIT_FAILURE);
+		} else {
+
+			int status;
+        		if (waitpid(child_pid, &status, 0) == -1) {
+            			perror("Waitpid error.\n");
+            			exit(EXIT_FAILURE);
+        		}
+		}
+		printf("%s\n",stringToSend);
+
+    	} else if (sigNum == 12) {
+		// SIGUSR2
+        	int num_pid = getpid();
+        	char op = '-';
+		char stringSupport[128];
+        	sprintf(stringSupport, "%c%d\n", op, num_pid);
+
+		size_t remainingSpace = sizeof(stringToSend) - strlen(stringToSend) - 1;  // -1 for the null terminator
+		strncpy(stringToSend + strlen(stringToSend), stringSupport, remainingSpace);
+
+		int child_pid = getpid();
+        	if (child_pid > 0) {
+			if (kill(child_pid, SIGTERM) == -1) {
+                		perror("Kill error.\n");
+                		exit(EXIT_FAILURE);
+			}
+			sprintf(stringToSend, "%c%d\n", op, num_pid);
+	        } else {
+			sprintf(stringToSend, "0%d\n", num_pid);
+	        }
+
+		printf("%s\n",stringToSend);
+
+	} else if (sigNum == 2) {
+		// SIGINT
+		printf("%s\n",stringToSend);
+		sprintf(stringToSend, "%d\n", getpid());
+		exit(EXIT_SUCCESS);
+	}
+}
+
+int main (int argc, char *argv[]) {
+	path = argv[1];
+	writePidFile(getpid());
+
+	signal(SIGUSR1,handler);
+	signal(SIGUSR2,handler);
+	signal(SIGINT,handler);
+
+	while(1);
+
+	return 0;
+}
+
+void writePidFile(char * string){
+	FILE * pf;
+        pf = fopen(path,"w");
+
+        if (pf == NULL) {
+	        fprintf(stderr,"stderr: %s\n", strerror(errno));
+        }
+        else {
+		fprintf(pf, "%d\n", string);
+		printf("[server:%d]\n",getpid());
+              	fclose(pf);
+        }
+	return;
+}

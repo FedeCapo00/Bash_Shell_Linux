@@ -1,0 +1,40 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+void handler(int signo) {
+    printf("Ricevuto SIGINT. Uscita...\n");
+    exit(EXIT_SUCCESS);
+}
+
+int main (int argc, char *argv[]) {
+        char * path = argv[1];
+	char pid_letto[256];
+        FILE * pf;
+
+	pf = fopen(path,"r");
+	signal(SIGINT, handler);
+
+	while (1) {
+	        pf = fopen(path, "r");
+
+        	if (pf != NULL) {
+			if (fgets(pid_letto, sizeof(pid_letto), pf) != NULL) {
+				printf("[client] server: %s", pid_letto);
+                		fclose(pf);
+                		break; // Esci dal ciclo se hai letto con successo il PID
+			}
+			fclose(pf);
+        
+
+        return 0;
+}
